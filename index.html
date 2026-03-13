@@ -1,0 +1,682 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PDF Diff Viewer - Full Text Word-by-Word</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial,
+          sans-serif;
+        background: #f5f5f5;
+        color: #333;
+        min-height: 100vh;
+      }
+
+      /* Header */
+      .header {
+        background: white;
+        border-bottom: 1px solid #ddd;
+        padding: 1.5rem 2rem;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+
+      .header-content {
+        max-width: 1800px;
+        margin: 0 auto;
+      }
+
+      .header h1 {
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: #1a1a1a;
+      }
+
+      /* Main Container */
+      .container {
+        max-width: 1800px;
+        margin: 0 auto;
+        padding: 1.5rem;
+      }
+
+      /* Upload Section */
+      .upload-section {
+        background: white;
+        border-radius: 4px;
+        padding: 2rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+
+      .upload-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .upload-box {
+        border: 2px dashed #ccc;
+        border-radius: 4px;
+        padding: 2rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background: #fafafa;
+      }
+
+      .upload-box:hover {
+        border-color: #0066cc;
+        background: #f0f6ff;
+      }
+
+      .upload-box.active {
+        border-color: #28a745;
+        background: #f0fff4;
+      }
+
+      .upload-label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: #333;
+        font-size: 1rem;
+      }
+
+      .upload-hint {
+        display: block;
+        font-size: 0.85rem;
+        color: #666;
+        margin-bottom: 0.5rem;
+      }
+
+      .file-name {
+        display: block;
+        font-size: 0.85rem;
+        color: #28a745;
+        font-weight: 500;
+        word-break: break-all;
+        margin-top: 0.5rem;
+      }
+
+      input[type="file"] {
+        display: none;
+      }
+
+      .action-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+      }
+
+      .btn {
+        padding: 0.75rem 2rem;
+        border: none;
+        border-radius: 4px;
+        font-weight: 600;
+        cursor: pointer;
+        font-size: 0.95rem;
+        transition: all 0.3s ease;
+      }
+
+      .btn-primary {
+        background: #0066cc;
+        color: white;
+      }
+
+      .btn-primary:hover:not(:disabled) {
+        background: #0052a3;
+      }
+
+      .btn-secondary {
+        background: #6c757d;
+        color: white;
+      }
+
+      .btn-secondary:hover:not(:disabled) {
+        background: #5a6268;
+      }
+
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      /* Message */
+      .message {
+        padding: 1rem;
+        border-radius: 4px;
+        margin-bottom: 1.5rem;
+        display: none;
+      }
+
+      .message.show {
+        display: block;
+      }
+
+      .message.error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+
+      .message.success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+
+      /* Comparison Section */
+      .comparison-section {
+        display: none;
+      }
+
+      .comparison-section.active {
+        display: block;
+      }
+
+      /* Statistics */
+      .stats-section {
+        background: white;
+        border-radius: 4px;
+        padding: 1.5rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        display: none;
+        margin-bottom: 1.5rem;
+      }
+
+      .stats-section.active {
+        display: block;
+      }
+
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
+      }
+
+      .stat-card {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 4px;
+        border-left: 4px solid;
+        text-align: center;
+      }
+
+      .stat-card.removed {
+        border-color: #dc3545;
+      }
+
+      .stat-card.added {
+        border-color: #28a745;
+      }
+
+      .stat-card.unchanged {
+        border-color: #999;
+      }
+
+      .stat-label {
+        font-size: 0.75rem;
+        color: #666;
+        text-transform: uppercase;
+        margin-bottom: 0.5rem;
+        letter-spacing: 0.5px;
+      }
+
+      .stat-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #333;
+      }
+
+      /* Side by side container */
+      .comparison-container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .pdf-pane {
+        background: white;
+        border-radius: 4px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        min-height: 800px;
+      }
+
+      .pane-header {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-bottom: 1px solid #ddd;
+        font-weight: 600;
+        font-size: 0.95rem;
+      }
+
+      .pane-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 2rem;
+        font-size: 0.95rem;
+        line-height: 1.8;
+        text-align: justify;
+        word-wrap: break-word;
+      }
+
+      /* Word styling */
+      .word {
+        display: inline;
+        white-space: normal;
+      }
+
+      .word.added {
+        background: #c6efce;
+        color: #006100;
+        padding: 0.15rem 0.3rem;
+        border-radius: 2px;
+        font-weight: 500;
+      }
+
+      .word.removed {
+        background: #ffc7ce;
+        color: #9c0006;
+        padding: 0.15rem 0.3rem;
+        border-radius: 2px;
+        text-decoration: line-through;
+        font-weight: 500;
+      }
+
+      .word.unchanged {
+        display: inline;
+      }
+
+      /* Scrollbar */
+      .pane-content::-webkit-scrollbar {
+        width: 10px;
+      }
+
+      .pane-content::-webkit-scrollbar-track {
+        background: #f1f1f1;
+      }
+
+      .pane-content::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 4px;
+      }
+
+      .pane-content::-webkit-scrollbar-thumb:hover {
+        background: #555;
+      }
+
+      /* Loading */
+      .loading {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid #f3f3f3;
+        border-top: 2px solid #0066cc;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-right: 0.5rem;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Responsive */
+      @media (max-width: 1200px) {
+        .comparison-container {
+          grid-template-columns: 1fr;
+        }
+
+        .pdf-pane {
+          min-height: 600px;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .container {
+          padding: 1rem;
+        }
+
+        .upload-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .pane-content {
+          padding: 1rem;
+          font-size: 0.9rem;
+        }
+
+        .stats-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Header -->
+    <div class="header">
+      <div class="header-content">
+        <h1>PDF Diff Viewer</h1>
+      </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container">
+      <!-- Message -->
+      <div class="message" id="message"></div>
+
+      <!-- Upload Section -->
+      <div class="upload-section" id="uploadSection">
+        <div class="upload-grid">
+          <div
+            class="upload-box"
+            onclick="document.getElementById('pdfA').click()"
+            id="uploadBoxA"
+          >
+            <span class="upload-label">Original PDF</span>
+            <span class="upload-hint">Click to select or drag and drop</span>
+            <span class="file-name" id="fileNameA"></span>
+            <input type="file" id="pdfA" accept="application/pdf" />
+          </div>
+
+          <div
+            class="upload-box"
+            onclick="document.getElementById('pdfB').click()"
+            id="uploadBoxB"
+          >
+            <span class="upload-label">Modified PDF</span>
+            <span class="upload-hint">Click to select or drag and drop</span>
+            <span class="file-name" id="fileNameB"></span>
+            <input type="file" id="pdfB" accept="application/pdf" />
+          </div>
+        </div>
+
+        <div class="action-buttons">
+          <button
+            class="btn btn-primary"
+            id="compareBtn"
+            onclick="comparePDFs()"
+            disabled
+          >
+            Compare PDFs
+          </button>
+          <button
+            class="btn btn-secondary"
+            id="resetBtn"
+            onclick="resetForm()"
+            style="display: none"
+          >
+            Reset
+          </button>
+        </div>
+      </div>
+
+      <!-- Statistics Section -->
+      <div class="stats-section" id="statsSection">
+        <div class="stats-grid">
+          <div class="stat-card removed">
+            <div class="stat-label">Words Removed</div>
+            <div class="stat-value" id="removedCount">0</div>
+          </div>
+          <div class="stat-card added">
+            <div class="stat-label">Words Added</div>
+            <div class="stat-value" id="addedCount">0</div>
+          </div>
+          <div class="stat-card unchanged">
+            <div class="stat-label">Total Words</div>
+            <div class="stat-value" id="totalCount">0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Comparison Section -->
+      <div class="comparison-section" id="comparisonSection">
+        <div class="comparison-container">
+          <!-- Original PDF -->
+          <div class="pdf-pane">
+            <div class="pane-header">Original PDF</div>
+            <div class="pane-content" id="originalPane"></div>
+          </div>
+
+          <!-- Modified PDF -->
+          <div class="pdf-pane">
+            <div class="pane-header">Modified PDF</div>
+            <div class="pane-content" id="modifiedPane"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const SERVER_URL = "http://localhost:5000";
+      let pdfA = null;
+      let pdfB = null;
+
+      // File Input Handlers
+      document.getElementById("pdfA").addEventListener("change", (e) => {
+        pdfA = e.target.files?.[0];
+        updateFileDisplay("A");
+        updateCompareButton();
+      });
+
+      document.getElementById("pdfB").addEventListener("change", (e) => {
+        pdfB = e.target.files?.[0];
+        updateFileDisplay("B");
+        updateCompareButton();
+      });
+
+      function updateFileDisplay(which) {
+        const file = which === "A" ? pdfA : pdfB;
+        const fileName = document.getElementById(`fileName${which}`);
+        const uploadBox = document.getElementById(`uploadBox${which}`);
+
+        if (file) {
+          fileName.textContent = file.name;
+          uploadBox.classList.add("active");
+        } else {
+          fileName.textContent = "";
+          uploadBox.classList.remove("active");
+        }
+      }
+
+      function updateCompareButton() {
+        const btn = document.getElementById("compareBtn");
+        btn.disabled = !pdfA || !pdfB;
+      }
+
+      function showMessage(text, type = "info") {
+        const msg = document.getElementById("message");
+        msg.textContent = text;
+        msg.className = `message show ${type}`;
+        if (type !== "error") {
+          setTimeout(() => msg.classList.remove("show"), 3000);
+        }
+      }
+
+      async function comparePDFs() {
+        if (!pdfA || !pdfB) {
+          showMessage("Please select both PDF files", "error");
+          return;
+        }
+
+        const btn = document.getElementById("compareBtn");
+        btn.disabled = true;
+        btn.innerHTML = '<span class="loading"></span>Analyzing PDFs...';
+
+        try {
+          const formData = new FormData();
+          formData.append("pdf_a", pdfA);
+          formData.append("pdf_b", pdfB);
+
+          const response = await fetch(`${SERVER_URL}/api/compare/visual`, {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!response.ok) {
+            throw new Error(`Server error: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          if (data.status === "success") {
+            displayComparison(data);
+            showMessage("Comparison complete!", "success");
+            document.getElementById("uploadSection").style.display = "none";
+            document.getElementById("statsSection").classList.add("active");
+            document
+              .getElementById("comparisonSection")
+              .classList.add("active");
+            document.getElementById("resetBtn").style.display = "inline-block";
+          } else {
+            showMessage(data.error || "Comparison failed", "error");
+          }
+        } catch (err) {
+          showMessage(`Error: ${err.message}`, "error");
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "Compare PDFs";
+        }
+      }
+
+      function displayComparison(data) {
+        // Get full texts from visual_diff
+        const visualDiff = data.visual_diff;
+        const summary = visualDiff.summary;
+
+        // Prepare sets for quick lookup
+        const addedTexts = new Set(summary.added.map((item) => item.text));
+        const removedTexts = new Set(summary.removed.map((item) => item.text));
+
+        // Get all text content and split into words
+        let allOriginal = "";
+        let allModified = "";
+
+        // Reconstruct original: removed items + unchanged items
+        for (const item of summary.removed) {
+          allOriginal += item.text + " ";
+        }
+
+        // Reconstruct modified: added items + unchanged items
+        for (const item of summary.added) {
+          allModified += item.text + " ";
+        }
+
+        // Split into words
+        const origWords = allOriginal.trim().split(/\s+/);
+        const modWords = allModified.trim().split(/\s+/);
+
+        // Word-level comparison
+        const origSet = new Set(origWords);
+        const modSet = new Set(modWords);
+
+        let removedCount = 0;
+        let addedCount = 0;
+        let totalCount = Math.max(origWords.length, modWords.length);
+
+        // Highlight original
+        let origHTML = origWords
+          .map((word) => {
+            if (!modSet.has(word)) {
+              removedCount++;
+              return `<span class="word removed">${escapeHtml(word)}</span> `;
+            }
+            return `<span class="word unchanged">${escapeHtml(word)}</span> `;
+          })
+          .join("");
+
+        // Highlight modified
+        let modHTML = modWords
+          .map((word) => {
+            if (!origSet.has(word)) {
+              addedCount++;
+              return `<span class="word added">${escapeHtml(word)}</span> `;
+            }
+            return `<span class="word unchanged">${escapeHtml(word)}</span> `;
+          })
+          .join("");
+
+        // Display
+        document.getElementById("originalPane").innerHTML =
+          origHTML || '<p style="color: #999;">No content</p>';
+        document.getElementById("modifiedPane").innerHTML =
+          modHTML || '<p style="color: #999;">No content</p>';
+
+        // Update statistics
+        document.getElementById("removedCount").textContent = removedCount;
+        document.getElementById("addedCount").textContent = addedCount;
+        document.getElementById("totalCount").textContent = totalCount;
+      }
+
+      function resetForm() {
+        pdfA = null;
+        pdfB = null;
+        document.getElementById("pdfA").value = "";
+        document.getElementById("pdfB").value = "";
+        updateFileDisplay("A");
+        updateFileDisplay("B");
+        updateCompareButton();
+
+        document.getElementById("uploadSection").style.display = "block";
+        document.getElementById("statsSection").classList.remove("active");
+        document.getElementById("comparisonSection").classList.remove("active");
+        document.getElementById("resetBtn").style.display = "none";
+        document.getElementById("message").classList.remove("show");
+      }
+
+      function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      // Drag and drop
+      ["pdfA", "pdfB"].forEach((id) => {
+        const input = document.getElementById(id);
+        const box = document.getElementById(`uploadBox${id.charAt(3)}`);
+
+        box.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          box.style.borderColor = "#0066cc";
+          box.style.background = "#f0f6ff";
+        });
+
+        box.addEventListener("dragleave", () => {
+          box.style.borderColor = "#ccc";
+          box.style.background = "#fafafa";
+        });
+
+        box.addEventListener("drop", (e) => {
+          e.preventDefault();
+          box.style.borderColor = "#ccc";
+          box.style.background = "#fafafa";
+
+          const files = e.dataTransfer.files;
+          if (files.length > 0) {
+            input.files = files;
+            input.dispatchEvent(new Event("change"));
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
